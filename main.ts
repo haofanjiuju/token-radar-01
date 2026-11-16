@@ -72,6 +72,7 @@ function main(): void {
   console.log(
     `radar ${radar.model_version}: scanned ${radar.scanned_size} protocols, board ${radar.board_size} rows ` +
       `(watchlist ${radar.watchlist_size}/${radar.watchlist_size}), live ${radar.live_size}, set aside ${radar.aside_size}; ` +
+      `peer ratios winsorized at ${radar.ratio_cap}x (market p95); ` +
       `top: ${board[0]!.slug} at $${board[0]!.implied_value_usd.toLocaleString('en-US')}`,
   );
 }

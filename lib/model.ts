@@ -7,7 +7,10 @@
 //   comps     = for every category, the median market-cap / TVL ratio of that category's protocols
 //               whose token already trades in this same snapshot, shrunk toward the market-wide
 //               median by the number of trading peers (a category with few peers borrows strength
-//               from the whole market instead of trusting two or three prints)
+//               from the whole market instead of trusting two or three prints). Peer ratios are
+//               winsorized at the market's own 95th percentile first: a handful of tokens trade at
+//               20x-400x their recorded TVL because the record understates their business, and one
+//               such print must not carry a whole category's price.
 //   base      = tvl_usd x comps(category)
 //   momentum  = 1 + clamp(change_7d, -50, 100) / 100 x 0.4, held inside [0.7, 1.4];
 //               an unreported seven-day change is neutral, never invented
@@ -52,7 +55,7 @@ export interface Snapshot {
 }
 
 /** The model's version label: the dashboard names it and the board's rows carry it. */
-export const MODEL_VERSION = 'comps-2';
+export const MODEL_VERSION = 'comps-3';
 
 /** How many already-trading protocols the dashboard's comparison view carries, by market cap. */
 export const LIVE_ROWS = 36;
@@ -64,6 +67,8 @@ export const ASIDE_ROWS = 60;
 export const MODEL = {
   /** Trading peers a category needs before its own median is trusted at full weight. */
   shrink_peers: 4,
+  /** Peer ratios are winsorized at this percentile of the market's own ratio distribution. */
+  winsor_pct: 95,
   /** Momentum: how much of a seven-day TVL move the value takes. */
   momentum_weight: 0.4,
   momentum_floor_pct: -50,
@@ -91,6 +96,8 @@ export interface CategoryMultiple {
 export interface CompTable {
   global_multiple: number;
   global_peers: number;
+  /** The winsorizing cap applied to peer ratios: the market's own 95th-percentile ratio. */
+  ratio_cap: number;
   by_category: Map<string, CategoryMultiple>;
 }
 
@@ -164,6 +171,7 @@ export interface RadarData {
   model_constants: typeof MODEL;
   global_multiple: number;
   global_peers: number;
+  ratio_cap: number;
   categories: CategoryMultiple[];
   scanned_size: number;
   watchlist_size: number;
@@ -216,7 +224,9 @@ const EXCHANGE_PREFIXES = ['Binance', 'Coinbase', 'Bybit', 'Kraken', 'Bitget', '
  */
 export function setAsideReason(p: SnapshotProtocol): string | null {
   if (p.category !== null && PRODUCT_CATEGORIES.has(p.category)) {
-    return `a ${p.category} product: it wraps, stakes or bridges a token that already trades`;
+    if (p.category === 'CEX') return 'an exchange product entry: the house watchlist excludes centralised-exchange products from launch candidates';
+    if (p.category.includes('Bridge')) return 'a bridge product: it moves or wraps a token that already trades, so there is no launch of its own to price';
+    return 'a staking product: it wraps a token that already trades, so there is no launch of its own to price';
   }
   if (VERSIONED.test(p.name)) return 'its name ends in a version marker: a pool of another protocol, not a launch of its own';
   if (/\b(wrapped|staked|staking)\b/i.test(p.name)) return 'its name marks it as a wrapped or staked product of a token that already trades';
@@ -241,16 +251,24 @@ function median(values: number[]): number {
  * prices at the market-wide multiple and says its peer count is zero.
  */
 export function compTable(snapshot: Snapshot): CompTable {
-  const ratiosByCategory = new Map<string, number[]>();
-  const all: number[] = [];
+  const raw: { category: string | null; ratio: number }[] = [];
   for (const p of snapshot.protocols) {
     if (p.mcap_usd === null || p.tvl_usd <= 0) continue;
-    const ratio = p.mcap_usd / p.tvl_usd;
-    all.push(ratio);
-    if (p.category !== null) {
-      const list = ratiosByCategory.get(p.category) ?? [];
-      list.push(ratio);
-      ratiosByCategory.set(p.category, list);
+    raw.push({ category: p.category, ratio: p.mcap_usd / p.tvl_usd });
+  }
+  const sortedRatios = raw.map((x) => x.ratio).sort((a, b) => a - b);
+  const cap = sortedRatios.length > 0
+    ? sortedRatios[Math.min(sortedRatios.length - 1, Math.floor((MODEL.winsor_pct / 100) * sortedRatios.length))]!
+    : Number.POSITIVE_INFINITY;
+  const ratiosByCategory = new Map<string, number[]>();
+  const all: number[] = [];
+  for (const { category, ratio } of raw) {
+    const winsorized = Math.min(ratio, cap);
+    all.push(winsorized);
+    if (category !== null) {
+      const list = ratiosByCategory.get(category) ?? [];
+      list.push(winsorized);
+      ratiosByCategory.set(category, list);
     }
   }
   const globalMultiple = all.length > 0 ? median(all) : 0.15;
@@ -261,7 +279,7 @@ export function compTable(snapshot: Snapshot): CompTable {
     const shrunk = (n * own + MODEL.shrink_peers * globalMultiple) / (n + MODEL.shrink_peers);
     byCategory.set(category, { category, multiple: round4(shrunk), peers: n });
   }
-  return { global_multiple: round4(globalMultiple), global_peers: all.length, by_category: byCategory };
+  return { global_multiple: round4(globalMultiple), global_peers: all.length, ratio_cap: round4(cap), by_category: byCategory };
 }
 
 /** The multiple one protocol prices at, and how many trading peers stand behind it. */
@@ -551,6 +569,7 @@ export function buildRadar(snapshot: Snapshot): { board: BoardRow[]; radar: Rada
     model_constants: MODEL,
     global_multiple: comps.global_multiple,
     global_peers: comps.global_peers,
+    ratio_cap: comps.ratio_cap,
     categories,
     scanned_size: snapshot.protocols.length,
     watchlist_size: snapshot.watchlist.length,

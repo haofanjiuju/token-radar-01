@@ -61,7 +61,8 @@ function renderModel() {
     <code>implied = TVL × category multiple × momentum × seasoning × breadth</code>.
     The category multiple is the <b>median market-cap / TVL of that category's already-trading protocols in this
     snapshot</b>, shrunk toward the market-wide median (${fmtMult(R.global_multiple)} across ${R.global_peers} trading protocols)
-    when a category has few peers. Momentum takes 40% of the seven-day TVL move, clamped; seasoning rewards a longer
+    when a category has few peers, with peer ratios winsorized at the market's own 95th percentile (${fmtMult(R.ratio_cap)})
+    so one token trading at hundreds of times its recorded TVL cannot carry a whole category. Momentum takes 40% of the seven-day TVL move, clamped; seasoning rewards a longer
     no-token record; breadth rewards TVL spread over more chains. Protocols whose token already trades are kept apart
     below, and wrapped, staked or bridged products are set aside with their reason — the board ranks launches, not wrappers.</p>
     <table class="mult-table"><thead><tr><th>Category</th><th>Trading peers</th><th>Multiple used</th></tr></thead>
