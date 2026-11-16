@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Token Launch Radar</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true">&#9673;</div>
+    <div>
+      <h1>Token Launch Radar</h1>
+      <p class="sub" id="subline">Loading the snapshot&hellip;</p>
+    </div>
+  </div>
+  <div class="stats" id="stats"></div>
+</header>
+<main>
+  <section class="card model" id="model"></section>
+  <nav class="tabs" id="tabs">
+    <button type="button" class="tab" data-view="board">Launch board</button>
+    <button type="button" class="tab" data-view="live">Already trading</button>
+    <button type="button" class="tab" data-view="aside">Set aside</button>
+  </nav>
+  <section class="card toolbar" id="toolbar">
+    <input id="q" type="search" placeholder="Search name or slug" autocomplete="off">
+    <select id="cat" aria-label="Category"></select>
+    <select id="chain" aria-label="Chain"></select>
+    <select id="min" aria-label="Minimum TVL">
+      <option value="0">Any TVL</option>
+      <option value="10000000">TVL &ge; $10M</option>
+      <option value="50000000">TVL &ge; $50M</option>
+      <option value="250000000">TVL &ge; $250M</option>
+      <option value="1000000000">TVL &ge; $1B</option>
+    </select>
+    <label class="check"><input type="checkbox" id="wl"> Watchlist only</label>
+    <select id="sort" aria-label="Sort">
+      <option value="value">Sort: implied value</option>
+      <option value="tvl">Sort: TVL</option>
+      <option value="growth">Sort: 7d growth</option>
+      <option value="age">Sort: age</option>
+    </select>
+    <span class="count" id="count"></span>
+  </section>
+  <section id="view"></section>
+  <section id="detail" hidden></section>
+</main>
+<footer class="foot" id="foot"></footer>
+<script src="../data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
